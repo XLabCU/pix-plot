@@ -74,16 +74,15 @@ After installation, you'll need to replace the rasterfairy.py file with the upda
    ```
 
 2. Replace the content of the rasterfairy.py file with the provided fix:
-   - Copy the entire content from `replace-rasterfairy-py-with-this-file.py`
+   - Copy the entire content from `rasterfairy.py` in this repository
    - Paste it into the `rasterfairy.py` file, replacing all existing content
 
-Open `replace-rasterfairy-py-with-this-file.py` in your text editor.
-
-Copy all of its contents
-
-Open the rasterfairy.py in your site-packages directory (/site-packages/rasterfairy/rasterfairy.py)
-
-Replace its contents with the 'replace' file's contents.
+   You can do this with a text editor or use these commands:
+   ```bash
+   # Copy the fixed version over the original
+   # Assuming you're in this repository folder
+   cp rasterfairy.py /path/to/site-packages/rasterfairy/rasterfairy.py
+   ```
 
 ### 5. Verify the Installation
 
@@ -115,8 +114,9 @@ If you encounter errors related to rasterfairy after following these steps, veri
 2. Your Python environment is exactly 3.10.x
 3. You have the correct numpy version (1.22.4)
 
-For further assistance, please create an issue in the repository.
+---
 
+(original readme:)
 
 # PixPlot
 

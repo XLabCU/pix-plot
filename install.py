@@ -58,4 +58,4 @@ except:
 
 print("\nPixPlot installation complete!")
 print("Some dependencies may show as conflicting, but the application should still work.")
-print("If you encounter issues, please report them.")
+print("Good luck and godspeed!")

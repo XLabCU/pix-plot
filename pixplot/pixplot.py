@@ -1,4 +1,3 @@
-from __future__ import division
 import warnings; warnings.filterwarnings('ignore')
 
 ##
@@ -15,7 +14,12 @@ import glob2
 import uuid
 import sys
 import os
+import numpy as np
+      
+from urllib.request import urlretrieve as download_function # Python 3 urllib
+from urllib.parse import unquote
 
+    
 def timestamp():
   '''Return a string for printing the current time'''
   return str(datetime.datetime.now()) + ':'
@@ -59,18 +63,9 @@ if '--copy_web_only' not in sys.argv:
   import csv
 
   ##
-  # Python 2 vs 3 imports
+  # Python 2 vs 3 imports - Removed Python 2 compatibility, keeping only Python 3
   ##
 
-  try:
-    from urllib.parse import unquote # python 3
-  except:
-    from urllib import unquote # python 2
-
-  try:
-    from urllib.request import retrieve as download_function # python 3
-  except:
-    from urllib.request import urlretrieve as download_function # python 2
 
   ##
   # Optional install imports
@@ -547,6 +542,7 @@ def save_atlas(atlas, out_dir, n):
 
 def get_layouts(**kwargs):
   '''Get the image positions in each projection'''
+  print(timestamp(), "Entering get_layouts()") # DEBUG PRINT
   umap = get_umap_layout(**kwargs)
   layouts = {
     'umap': umap,
@@ -606,7 +602,7 @@ def process_single_layout_umap(v, **kwargs):
   if cuml_ready:
     z = model.fit(v).embedding_
   else:
-    if os.path.exists(out_path) and kwargs['use_cache']: 
+    if os.path.exists(out_path) and kwargs['use_cache']:
       return {
         'variants': [
           {
@@ -723,7 +719,7 @@ def load_model(path):
   model.set_params(**params.get('umap_params'))
   for attr, value in params.get('umap_attributes').items():
     model.__setattr__(attr, value)
-  model.__setattr__('embeddings_', List(params.get('umap_attributes').get('embeddings_')))
+  model.__setattr__('embeddings_', list(params.get('umap_attributes').get('embeddings_')))
 
 
 def get_umap_model(**kwargs):
@@ -756,25 +752,18 @@ def get_tsne_layout(**kwargs):
   return write_layout(out_path, z, **kwargs)
 
 
+      
 def get_rasterfairy_layout(**kwargs):
   '''Get the x, y position of images passed through a rasterfairy projection'''
-  print(timestamp(), 'Creating rasterfairy layout')
-  out_path = get_path('layouts', 'rasterfairy', **kwargs)
-  if os.path.exists(out_path) and kwargs['use_cache']: return out_path
-  umap = np.array(read_json(kwargs['umap']['variants'][0]['layout'], **kwargs))
-  if umap.shape[-1] != 2:
-    print(timestamp(), 'Could not create rasterfairy layout because data is not 2D')
-    return None
-  umap = (umap + 1)/2 # scale 0:1
-  try:
-    umap = coonswarp.rectifyCloud(umap, # stretch the distribution
-      perimeterSubdivisionSteps=4,
-      autoPerimeterOffset=False,
-      paddingScale=1.05)
-  except Exception as exc:
-    print(timestamp(), 'Coonswarp rectification could not be performed', exc)
-  pos = rasterfairy.transformPointCloud2D(umap)[0]
-  return write_layout(out_path, pos, **kwargs)
+  print(timestamp(), 'Creating rasterfairy layout') # Keep print statement
+
+  umap = np.array(read_json(kwargs['umap']['variants'][0]['layout'], **kwargs)) # Load UMAP data
+
+  # --- MINIMAL RASTERFAIRY CALL ---
+  pos = rasterfairy.transformPointCloud2D(umap)[0] # Keep ONLY this line for now
+  # --- END MINIMAL CALL ---
+
+  return write_layout(get_path('layouts', 'rasterfairy', **kwargs), pos, **kwargs) # Keep write_layout
 
 
 def get_lap_layout(**kwargs):

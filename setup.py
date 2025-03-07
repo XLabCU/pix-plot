@@ -4,8 +4,8 @@ import os
 import sys
 
 # validate python version
-if sys.version_info < (3, 6):
-  sys.exit('Sorry, PixPlot requires Python 3.6 or later')
+if sys.version_info < (3, 10):
+  sys.exit('Sorry, this version of PixPlot requires Python 3.10 or later')
 
 # populate list of all paths in `./pixplot/web`
 web = []
@@ -35,27 +35,23 @@ setup(
   author='Douglas Duhaime',
   author_email='douglas.duhaime@gmail.com',
   license='MIT',
-  install_requires=[
-    'cmake>=3.15.3',
-    'Cython>=0.29.21',
-    'glob2>=0.6',
-    'h5py~=3.1.0',
-    'iiif-downloader>=0.0.6',
-    'numba==0.53',
-    'numpy==1.19.5',
-    'Pillow>=6.1.0',
-    'pointgrid>=0.0.2',
-    'python-dateutil>=2.8.0',
-    'scikit-learn==0.24.2',
-    'scipy==1.4.0',
-    'six==1.15.0',
-    'tensorflow==2.5.0',
-    'tqdm==4.61.1',
-    'umap-learn==0.5.1',
-    'yale-dhlab-rasterfairy>=1.0.3',
-    'yale-dhlab-keras-preprocessing>=1.1.1',
-    'matplotlib'
-  ],
+  install_requires = [
+  'cmake>=3.15.3',
+  'glob2>=0.6',
+  'h5py>=3.8.0',
+  'iiif-downloader>=0.0.6',
+  'numpy>=1.22.1',
+  'Pillow>=10.0.0',
+  'pointgrid>=0.0.2',
+  'python-dateutil>=2.8.0',
+  'scikit-learn>=1.3.0',
+  'scipy>=1.11.0',
+  'tensorflow',  # TF 2.12+ supports Python 3.11
+  'tqdm>=4.66.0',
+  'umap-learn>=0.5.3',
+  'rasterfairy>=1.0.6',  # Check if this needs updating
+  'matplotlib>=3.7.0'
+],
   entry_points={
     'console_scripts': [
       'pixplot=pixplot:parse',

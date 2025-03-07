@@ -1,3 +1,123 @@
+# PixPlot for Python 3.10
+# PixPlot Installation Guide
+
+This guide will help you install PixPlot for Python 3.10 environments. PixPlot is a tool for visualizing large image collections using WebGL, machine learning, and dimensionality reduction techniques.
+
+## Prerequisites
+
+- Python 3.10 (required)
+- Conda or Miniconda (recommended for environment management)
+
+## Installation Steps
+
+### 1. Create a Python 3.10 Environment
+
+First, create a dedicated Python 3.10 environment:
+
+**Using Conda:**
+```bash
+conda create -n pixplot python=3.10
+conda activate pixplot
+```
+
+**Using venv (if not using Conda):**
+```bash
+python -m venv pixplot-env
+# On Windows
+pixplot-env\Scripts\activate
+# On macOS/Linux
+source pixplot-env/bin/activate
+```
+
+### 2. Clone the Repository
+
+```bash
+git clone https://github.com/yaledhlab/pix-plot.git
+cd pix-plot
+```
+
+### 3. Run the Installation Script
+
+Run the installation script which will install all required dependencies:
+
+```bash
+python install.py
+```
+
+This script will:
+- Install numpy 1.22.4
+- Install TensorFlow 2.13.0
+- Install critical dependencies (scipy, matplotlib, scikit-learn, umap-learn, etc.)
+- Install the Yale fork of rasterfairy
+- Install MulticoreTSNE (if conda is available)
+- Install PixPlot itself
+
+### 4. Fix the Rasterfairy Module
+
+After installation, you'll need to replace the rasterfairy.py file with the updated version to ensure compatibility with Python 3.10:
+
+1. Locate the rasterfairy module in your environment:
+
+   **For Conda environments:**
+   ```bash
+   # Find the path to your environment
+   conda env list
+   
+   # Navigate to the site-packages directory
+   cd /path/to/your/conda/envs/pixplot/lib/python3.10/site-packages/rasterfairy
+   ```
+
+   **For venv environments:**
+   ```bash
+   # Navigate to the site-packages directory
+   cd pixplot-env/lib/python3.10/site-packages/rasterfairy
+   ```
+
+2. Replace the content of the rasterfairy.py file with the provided fix:
+   - Copy the entire content from `replace-rasterfairy-py-with-this-file.py`
+   - Paste it into the `rasterfairy.py` file, replacing all existing content
+
+Open `replace-rasterfairy-py-with-this-file.py` in your text editor.
+
+Copy all of its contents
+
+Open the rasterfairy.py in your site-packages directory (/site-packages/rasterfairy/rasterfairy.py)
+
+Replace its contents with the 'replace' file's contents.
+
+### 5. Verify the Installation
+
+To verify the installation was successful:
+
+```bash
+python -c "import pixplot; print('PixPlot successfully installed')"
+```
+
+If no errors appear and you see the success message, the installation is complete.
+
+## Usage
+
+You can now use PixPlot with Python 3.10. Basic usage:
+
+```bash
+# Process a folder of images
+pixplot --images path/to/images
+
+# Run a local web server to view the visualization
+pixplot --serve
+```
+
+## Troubleshooting
+
+If you encounter errors related to rasterfairy after following these steps, verify that:
+
+1. You've properly replaced the rasterfairy.py file with the provided fix
+2. Your Python environment is exactly 3.10.x
+3. You have the correct numpy version (1.22.4)
+
+For further assistance, please create an issue in the repository.
+
+
 # PixPlot
 
 This repository contains code that can be used to visualize tens of thousands of images in a two-dimensional projection within which similar images are clustered together. The image analysis uses Tensorflow's Inception bindings, and the visualization layer uses a custom WebGL viewer.

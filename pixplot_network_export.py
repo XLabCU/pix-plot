@@ -158,7 +158,12 @@ def get_original_path(data_dir, filename):
     return os.path.join(data_dir, 'originals', os.path.basename(filename))
 
 def extract_network_data(data_dir, n_neighbors, layout_name, include_thumbs=True, include_metadata=True):
-    """Extract network data from PixPlot output"""
+    """Extract network data from PixPlot output
+    
+    Returns:
+        tuple: (network_data, metadata_dict) where network_data is a list of edge dictionaries
+               and metadata_dict is a dictionary of metadata for each image
+    """
     # First identify the plot_id from the manifest
     # This will help us locate the correct files
     print(timestamp(), f"Looking for PixPlot data in: {data_dir}")
@@ -324,23 +329,15 @@ def extract_network_data(data_dir, n_neighbors, layout_name, include_thumbs=True
                 'target_y': positions[neighbor_idx][1],
             }
             
-            # Add thumbnail paths if requested
-            if include_thumbs:
-                row['source_thumb'] = get_thumbnail_path(data_dir, base_filename)
-                row['source_original'] = get_original_path(data_dir, base_filename)
-                row['target_thumb'] = get_thumbnail_path(data_dir, neighbor_filename)
-                row['target_original'] = get_original_path(data_dir, neighbor_filename)
+            # No longer adding thumbnail paths to edges - they will be added to nodes instead
             
-            # Add metadata if available
-            if include_metadata and base_filename in metadata:
-                for key, value in metadata[base_filename].items():
-                    if key != 'filename':  # Skip filename to avoid duplication
-                        row[f'source_{key}'] = value
+            # No longer adding metadata to edges - it will be added to nodes instead
             
             network_data.append(row)
     
     print(f"Created network data with {len(network_data)} connections")
-    return network_data
+    # Return both the network data and the metadata
+    return network_data, metadata
 
 def write_csv(network_data, output_path):
     """Write network data to CSV file"""
@@ -368,7 +365,7 @@ def write_csv(network_data, output_path):
         print(f"Error writing CSV: {e}")
         return False
 
-def create_node_csv(network_data, output_path):
+def create_node_csv(network_data, metadata, data_dir, include_thumbs, output_path):
     """Create a nodes CSV file with unique nodes and their attributes"""
     if not network_data:
         print("No network data to create node file")
@@ -376,25 +373,23 @@ def create_node_csv(network_data, output_path):
     
     nodes = {}
     
-    # Collect data for each unique node
+    # Collect unique nodes and their positions
     for row in network_data:
         # Process source node
         source = row['source']
         if source not in nodes:
-            node_data = {
+            nodes[source] = {
                 'id': source,
                 'x': row['source_x'],
                 'y': row['source_y']
             }
             
-            # Add any source metadata
-            for key, value in row.items():
-                if key.startswith('source_') and key not in ('source_x', 'source_y'):
-                    node_data[key[7:]] = value  # Remove 'source_' prefix
-            
-            nodes[source] = node_data
+            # Add thumbnail paths if requested
+            if include_thumbs:
+                nodes[source]['thumb'] = get_thumbnail_path(data_dir, source)
+                nodes[source]['original'] = get_original_path(data_dir, source)
         
-        # Process target node (only position data available)
+        # Process target node
         target = row['target']
         if target not in nodes:
             nodes[target] = {
@@ -402,6 +397,18 @@ def create_node_csv(network_data, output_path):
                 'x': row['target_x'],
                 'y': row['target_y']
             }
+            
+            # Add thumbnail paths if requested
+            if include_thumbs:
+                nodes[target]['thumb'] = get_thumbnail_path(data_dir, target)
+                nodes[target]['original'] = get_original_path(data_dir, target)
+    
+    # Add metadata to nodes
+    for node_id in nodes:
+        if node_id in metadata:
+            for key, value in metadata[node_id].items():
+                if key != 'filename':  # Skip filename to avoid duplication
+                    nodes[node_id][key] = value
     
     # Get all possible field names
     fieldnames = set()
@@ -441,8 +448,8 @@ def main():
         print(f"Error: Directory {args.data_dir} does not exist")
         return
         
-    # Extract network data
-    network_data = extract_network_data(
+    # Extract network data and metadata
+    result = extract_network_data(
         args.data_dir, 
         args.n_neighbors, 
         args.layout,
@@ -450,8 +457,14 @@ def main():
         include_metadata=args.include_metadata
     )
     
-    if not network_data:
+    if not result:
         print("Failed to extract network data")
+        return
+        
+    network_data, metadata = result
+    
+    if not network_data:
+        print("No network data was generated")
         return
     
     # Write edges CSV
@@ -461,7 +474,13 @@ def main():
     if success:
         # Create and write nodes CSV
         nodes_path = os.path.splitext(args.output)[0] + "_nodes.csv"
-        create_node_csv(network_data, nodes_path)
+        create_node_csv(
+            network_data, 
+            metadata,  # Pass the metadata directly to the node creation function
+            args.data_dir,
+            args.include_thumbs,
+            nodes_path
+        )
         
         print(timestamp(), f"Network data successfully exported to {edges_path} and {nodes_path}")
         print(f"You can now import these files into Gephi for network analysis.")

@@ -32,7 +32,7 @@ source pixplot-env/bin/activate
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/yaledhlab/pix-plot.git
+https://github.com/XLabCU/pix-plot.git
 cd pix-plot
 ```
 

@@ -9,6 +9,12 @@ This tool extracts image relationships from PixPlot visualizations and exports t
 - Includes metadata from the original PixPlot visualization
 - Generates both nodes and edges CSV files for direct import into Gephi
 
+![](oslomini.png)
+
+_1000 images from Oslo, coloured by modularity, sized by eigenvector centrality_
+
+Inspired by the [work of Arnold & Tilton](https://distantviewing.org/)
+
 ## Installation
 
 1. Get the script:

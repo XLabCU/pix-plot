@@ -133,6 +133,9 @@ config = {
   'seed': 24,
   'n_clusters': 12,
   'geojson': None,
+  'network_layout_iterations': 100,
+  'network_edge_threshold': 0.7,
+  'network_n_neighbors': 5,
 }
 
 
@@ -397,6 +400,43 @@ def is_number(s):
 ##
 
 
+def ensure_network_layout_exists(**kwargs):
+  '''Ensure that a network layout file exists, falling back to UMAP if necessary'''
+  network_path = get_path('layouts', 'network', **kwargs)
+  
+  # If network layout already exists, we're done
+  if os.path.exists(network_path):
+    return
+    
+  # No network layout file exists, check if we can create one from UMAP
+  # First check if UMAP layout exists
+  umap_path = None
+  try:
+    # Try to find a UMAP layout path by constructing one
+    possible_umap_path = get_path('layouts', 'umap', **kwargs)
+    if os.path.exists(possible_umap_path):
+      umap_path = possible_umap_path
+  except:
+    pass
+    
+  # If we found a UMAP layout, use it as the basis for the network layout
+  if umap_path:
+    try:
+      umap_layout = read_json(umap_path, **kwargs)
+      
+      # Create a network layout structure with positions from UMAP and empty edges
+      network_layout_data = {
+        'positions': umap_layout,
+        'edges': [] # No edges in the fallback, but structure is required for JS
+      }
+      
+      # Write as network layout - use special write_layout format for network data
+      write_layout(network_path, network_layout_data, scale=False, round=False, **kwargs)
+      print(timestamp(), f'Created fallback network layout based on UMAP at {network_path}')
+    except Exception as e:
+      print(timestamp(), f'Error creating fallback network layout: {e}')
+
+
 def get_manifest(**kwargs):
   '''Create and return the base object for the manifest output file'''
   # load the atlas data
@@ -413,6 +453,9 @@ def get_manifest(**kwargs):
   # create a heightmap for the umap layout
   if 'umap' in layouts and layouts['umap']:
     get_heightmap(layouts['umap']['variants'][0]['layout'], 'umap', **kwargs)
+    
+  # Ensure network layout file exists
+  ensure_network_layout_exists(**kwargs)
   # specify point size scalars
   point_sizes = {}
   point_sizes['min'] = 0
@@ -543,20 +586,44 @@ def save_atlas(atlas, out_dir, n):
 def get_layouts(**kwargs):
   '''Get the image positions in each projection'''
   print(timestamp(), "Entering get_layouts()") # DEBUG PRINT
+  
+  # First generate UMAP layout as it's used by other layouts
   umap = get_umap_layout(**kwargs)
+  
+  # Pass UMAP to kwargs for other layout functions to use
+  kwargs['umap'] = umap
+  
+  # Get network layout AFTER UMAP is available
+  network_path = get_path('layouts', 'network', **kwargs)
+  
   layouts = {
     'umap': umap,
     'alphabetic': {
       'layout': get_alphabetic_layout(**kwargs),
     },
     'grid': {
-      'layout': get_rasterfairy_layout(umap=umap, **kwargs),
+      'layout': get_rasterfairy_layout(**kwargs),
     },
     'categorical': get_categorical_layout(**kwargs),
     'date': get_date_layout(**kwargs),
     'geographic': get_geographic_layout(**kwargs),
     'custom': get_custom_layout(**kwargs),
   }
+  
+  # Generate network layout AFTER other layouts, so UMAP is available
+  network = get_network_layout(**kwargs)
+  
+  # Only add network layout if it's a valid object, not None or False
+  if network and isinstance(network, dict) and 'layout' in network:
+    layouts['network'] = network
+  else:
+    print(timestamp(), f"Network layout is invalid or missing: {network}")
+    # Add a placeholder with a properly formatted layout path
+    # This ensures the network layout is written to manifest.json similar to other layouts
+    layouts['network'] = {
+      'layout': network_path
+    }
+  
   return layouts
 
 
@@ -755,15 +822,27 @@ def get_tsne_layout(**kwargs):
       
 def get_rasterfairy_layout(**kwargs):
   '''Get the x, y position of images passed through a rasterfairy projection'''
-  print(timestamp(), 'Creating rasterfairy layout') # Keep print statement
-
-  umap = np.array(read_json(kwargs['umap']['variants'][0]['layout'], **kwargs)) # Load UMAP data
+  print(timestamp(), 'Creating rasterfairy layout')
+  
+  # Get UMAP layout - now it should already be in kwargs
+  if 'umap' in kwargs and kwargs['umap'] and 'variants' in kwargs['umap']:
+    umap_path = kwargs['umap']['variants'][0]['layout']
+    umap = np.array(read_json(umap_path, **kwargs))
+  else:
+    print(timestamp(), 'ERROR: UMAP layout not available for Rasterfairy')
+    # Create a simple grid layout as fallback
+    n = len(kwargs['image_paths'])
+    side = int(math.sqrt(n))
+    pos = np.zeros((n, 2))
+    for i in range(n):
+      pos[i] = [i % side, i // side]
+    return write_layout(get_path('layouts', 'rasterfairy', **kwargs), pos, **kwargs)
 
   # --- MINIMAL RASTERFAIRY CALL ---
   pos = rasterfairy.transformPointCloud2D(umap)[0] # Keep ONLY this line for now
   # --- END MINIMAL CALL ---
 
-  return write_layout(get_path('layouts', 'rasterfairy', **kwargs), pos, **kwargs) # Keep write_layout
+  return write_layout(get_path('layouts', 'rasterfairy', **kwargs), pos, **kwargs)
 
 
 def get_lap_layout(**kwargs):
@@ -844,6 +923,213 @@ def get_custom_layout(**kwargs):
   return {
     'layout': write_layout(out_path, coords.tolist(), scale=False, round=False, **kwargs),
   }
+
+
+def get_network_layout(**kwargs):
+  '''Get the x,y positions of images in a force-directed network layout'''
+  print(timestamp(), 'Creating network layout')
+  out_path = get_path('layouts', 'network', **kwargs)
+  
+  # Debug info for network layout
+  print(timestamp(), f"Network layout path: {out_path}")
+  print(timestamp(), f"Network params: n_neighbors={kwargs.get('network_n_neighbors', 'not set')}, "
+                   f"edge_threshold={kwargs.get('network_edge_threshold', 'not set')}, "
+                   f"iterations={kwargs.get('network_layout_iterations', 'not set')}")
+  
+  # Check if layout already exists and can be loaded from cache
+  if os.path.exists(out_path) and kwargs['use_cache']: 
+    print(timestamp(), f"Using cached network layout from {out_path}")
+    # Make sure to return the layout in the format expected by the frontend
+    return {
+      'layout': out_path
+    }
+    
+  # Always create a valid return structure even if we can't generate a layout yet
+  # This ensures the network layout is properly included in the manifest
+  result = {
+    'layout': out_path
+  }
+  
+  # Now UMAP should already be available since we changed the order of layout generation
+  if 'umap' not in kwargs or not kwargs['umap'] or 'variants' not in kwargs['umap']:
+    print(timestamp(), 'ERROR: UMAP layout still not available for network layout!')
+    # We'll need to create a default layout without UMAP as fallback
+    n = len(kwargs['image_paths'])
+    default_layout = np.zeros((n, 2))
+    for i in range(n):
+      default_layout[i] = [np.random.uniform(-1, 1), np.random.uniform(-1, 1)]
+    
+    # Create a default layout with no edges
+    network_layout_data = {
+      'positions': default_layout.tolist(),
+      'edges': []
+    }
+    write_layout(out_path, network_layout_data, scale=False, round=False, **kwargs)
+    print(timestamp(), f'Created emergency fallback network layout with random positions at {out_path}')
+    return result
+  
+  # UMAP is available, proceed with network layout generation
+  print(timestamp(), 'UMAP layout is available, proceeding with network layout generation')
+  
+  # Extract vectors for similarity calculation
+  vecs = kwargs['vecs']
+  
+  # Calculate pairwise distances
+  from scipy.spatial import distance
+  dist_matrix = distance.cdist(vecs, vecs, kwargs['metric'])
+  
+  # Parameters for network layout
+  n_neighbors = kwargs['network_n_neighbors']
+  iterations = kwargs['network_layout_iterations']
+  edge_threshold = kwargs['network_edge_threshold']
+  
+  # Find nearest neighbors
+  neighbors = []
+  for i in range(len(vecs)):
+    # Get indices of closest points
+    closest_indices = np.argsort(dist_matrix[i])
+    # Skip the first one (itself) and take the next n
+    neighbors.append(closest_indices[1:n_neighbors+1])
+  
+  # Build network graph
+  try:
+    import networkx as nx
+    G = nx.Graph()
+    
+    # Try to get initial positions from UMAP
+    try:
+      umap_layout = np.array(read_json(kwargs['umap']['variants'][0]['layout'], **kwargs))
+      # Add nodes with initial positions based on UMAP
+      for i in range(len(vecs)):
+        G.add_node(i, x=umap_layout[i][0], y=umap_layout[i][1])
+    except (KeyError, IndexError, FileNotFoundError) as e:
+      print(timestamp(), f'Could not use UMAP for initial positions: {e}')
+      # Add nodes with random initial positions
+      for i in range(len(vecs)):
+        G.add_node(i, x=np.random.uniform(-1, 1), y=np.random.uniform(-1, 1))
+    
+    # Add edges based on nearest neighbors
+    for i in range(len(vecs)):
+      for j in neighbors[i]:
+        # Convert distance to similarity measure
+        similarity = 1.0 / (dist_matrix[i][j] + 1e-5)
+        if similarity > edge_threshold:
+          G.add_edge(i, j, weight=similarity)
+    
+    print(timestamp(), f'Created network with {len(G.nodes)} nodes and {len(G.edges)} edges')
+    
+    # Check and clean edge weights to avoid numeric issues
+    for u, v, data in G.edges(data=True):
+      # Ensure weight is positive and finite
+      if not np.isfinite(data['weight']) or data['weight'] <= 0:
+        data['weight'] = 0.001  # Set to small positive value
+    
+    # Get initial positions
+    init_pos = {i: (G.nodes[i]['x'], G.nodes[i]['y']) for i in G.nodes}
+    
+    print(timestamp(), f"Running force-directed layout with {iterations} iterations on {len(G.nodes)} nodes and {len(G.edges)} edges")
+    
+    # Apply force-directed layout with safety checks
+    try:
+      # Try spring layout with weights
+      pos = nx.spring_layout(
+        G, 
+        pos=init_pos,
+        iterations=iterations,
+        weight='weight',
+        seed=kwargs['seed']
+      )
+    except Exception as layout_error:
+      print(timestamp(), f"Error in weighted spring layout: {layout_error}, trying without weights")
+      try:
+        # Fallback to spring layout without weights
+        pos = nx.spring_layout(
+          G, 
+          pos=init_pos,
+          iterations=iterations,
+          weight=None,  # No weights
+          seed=kwargs['seed']
+        )
+      except Exception as layout_error2:
+        print(timestamp(), f"Error in unweighted spring layout: {layout_error2}, using initial positions")
+        # Fallback to initial positions
+        pos = init_pos
+    
+    # Convert to list of positions
+    positions = np.zeros((len(vecs), 2))
+    for i, (x, y) in pos.items():
+      positions[i] = [x, y]
+    
+    # Save the edge data for visualization with validation
+    edges = []
+    for u, v, data in G.edges(data=True):
+      # Ensure nodes are integers and weight is a valid float
+      try:
+        src = int(u)
+        tgt = int(v)
+        # Ensure weight is positive and finite
+        weight = float(data['weight'])
+        if not np.isfinite(weight) or weight <= 0:
+          weight = 0.001  # Minimum positive weight
+        
+        # Only add if both nodes exist and are within bounds
+        if 0 <= src < len(vecs) and 0 <= tgt < len(vecs):
+          edges.append({
+            'source': src,
+            'target': tgt,
+            'weight': weight
+          })
+      except (ValueError, TypeError) as e:
+        print(timestamp(), f"Skipping invalid edge {u}-{v}: {e}")
+    
+    # Create layout data with positions and edges
+    layout_data = {
+      'positions': positions.tolist(),
+      'edges': edges
+    }
+    
+    # Write the layout to file - this needs a special format to include edges
+    layout_path = write_layout(out_path, layout_data, scale=False, round=False, **kwargs)
+    
+    # Return the layout data in the format expected by the frontend
+    return {
+      'layout': layout_path
+    }
+    
+  except ImportError as ie:
+    print(timestamp(), f'NetworkX not available; network layout will be skipped. Error: {ie}')
+    # Fallback to UMAP layout if available
+    if 'umap' in kwargs and 'variants' in kwargs['umap'] and kwargs['umap']['variants']:
+      umap_layout_path = kwargs['umap']['variants'][0]['layout']
+      if os.path.exists(umap_layout_path):
+        umap_layout = read_json(umap_layout_path, **kwargs)
+        # Create a network layout structure with positions from UMAP and empty edges
+        network_layout_data = {
+          'positions': umap_layout,
+          'edges': [] # No edges in the fallback, but structure is required for JS
+        }
+        write_layout(out_path, network_layout_data, scale=False, round=False, **kwargs)
+        print(timestamp(), f'Created fallback network layout based on UMAP at {out_path}')
+        return result
+    return result
+  except Exception as e:
+    import traceback
+    print(timestamp(), f'Error creating network layout: {e}')
+    print(timestamp(), f'Exception details: {traceback.format_exc()}')
+    # Fallback to UMAP layout if available
+    if 'umap' in kwargs and 'variants' in kwargs['umap'] and kwargs['umap']['variants']:
+      umap_layout_path = kwargs['umap']['variants'][0]['layout']
+      if os.path.exists(umap_layout_path):
+        umap_layout = read_json(umap_layout_path, **kwargs)
+        # Create a network layout structure with positions from UMAP and empty edges
+        network_layout_data = {
+          'positions': umap_layout,
+          'edges': [] # No edges in the fallback, but structure is required for JS
+        }
+        write_layout(out_path, network_layout_data, scale=False, round=False, **kwargs)
+        print(timestamp(), f'Created fallback network layout after error, based on UMAP at {out_path}')
+        return result
+    return result
 
 
 ##
@@ -1148,6 +1434,28 @@ def get_path(*args, **kwargs):
 
 def write_layout(path, obj, **kwargs):
   '''Write layout json `obj` to disk and return the path to the saved file'''
+  # Special handling for network layout with edges
+  if isinstance(obj, dict) and 'positions' in obj and 'edges' in obj:
+    positions = obj['positions']
+    edges = obj['edges']
+    
+    # Scale positions if needed
+    if kwargs.get('scale', True) != False:
+      positions = (minmax_scale(np.array(positions))-0.5)*2 # scale -1:1
+    
+    # Round positions if needed
+    if kwargs.get('round', True) != False:
+      positions = round_floats(positions)
+    
+    # Convert ndarray to list if needed
+    if isinstance(positions, np.ndarray):
+      positions = positions.tolist()
+    
+    # Prepare the output object with positions and edges
+    output_obj = {'positions': positions, 'edges': edges}
+    return write_json(path, output_obj, **kwargs)
+  
+  # Standard handling for position-only layouts
   if kwargs.get('scale', True) != False:
     obj = (minmax_scale(obj)-0.5)*2 # scale -1:1
   if kwargs.get('round', True) != False:
@@ -1360,6 +1668,9 @@ def parse():
   parser.add_argument('--seed', type=int, default=config['seed'], help='seed for random processes')
   parser.add_argument('--n_clusters', type=int, default=config['n_clusters'], help='number of clusters to use when clustering with kmeans')
   parser.add_argument('--geojson', type=str, default=config['geojson'], help='path to a GeoJSON file with shapes to be rendered on a map')
+  parser.add_argument('--network_n_neighbors', type=int, default=config['network_n_neighbors'], help='number of neighbors to use in network layout')
+  parser.add_argument('--network_edge_threshold', type=float, default=config['network_edge_threshold'], help='minimum similarity for edges in network layout')
+  parser.add_argument('--network_layout_iterations', type=int, default=config['network_layout_iterations'], help='number of iterations for force-directed layout')
   config.update(vars(parser.parse_args()))
   process_images(**config)
 

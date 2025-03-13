@@ -689,13 +689,34 @@ Layout.prototype.set = function(layout, enableDelay) {
   if (layout === 'settings-icon') return;
   // disallow new transitions when we're transitioning
   if (world.state.transitioning) return;
-  if (!(layout in data.json.layouts) || !(data.json.layouts[layout])) {
+  
+  // Check if the layout exists and is valid
+  if (!(layout in data.json.layouts)) {
     console.warn('The requested layout is not in data.json.layouts');
     return;
-  };
+  }
+  
+  // Make sure layout data is available and valid
+  var layoutData = data.json.layouts[layout];
+  if (!layoutData) {
+    console.warn('Layout data is empty for ' + layout);
+    return;
+  }
+  
+  // For network layout, check if layout path is valid
+  if (layout === 'network' && (!layoutData.layout || layoutData.layout === null)) {
+    console.warn('Network layout path is missing or invalid');
+    return;
+  }
+  
   world.state.transitioning = true;
   // set the selected layout
   this.selected = layout;
+
+  // Dispatch a custom event for the layout change
+  var event = new CustomEvent('layout-selected', { detail: { layout: layout } });
+  window.dispatchEvent(event);
+  
   // set the world mode back to pan
   world.setMode('pan');
   // select the active tab
@@ -716,15 +737,34 @@ Layout.prototype.set = function(layout, enableDelay) {
   data.hotspots.setCreateHotspotVisibility(false);
   // begin the new layout transition
   setTimeout(function() {
-    get(getPath(this.getLayoutPath()), function(pos) {
+    var layoutPath = this.getLayoutPath();
+    if (!layoutPath) {
+      console.error('Cannot transition layout: layout path is null');
+      world.state.transitioning = false;
+      return;
+    }
+    
+    get(getPath(layoutPath), function(pos) {
       // clear the LOD mechanism
       lod.clear();
       // set the target locations of each point
-      for (var i=0; i<data.cells.length; i++) {
-        data.cells[i].tx = pos[i][0];
-        data.cells[i].ty = pos[i][1];
-        data.cells[i].tz = pos[i][2] || data.cells[i].getZ(pos[i][0], pos[i][1]);
-        data.cells[i].setBuffer('targetTranslation');
+      // For network layout, we need to handle positions differently
+      if (this.selected === 'network' && pos.positions) {
+        // Network layout returns {positions: [...], edges: [...]}
+        for (var i=0; i<data.cells.length && i<pos.positions.length; i++) {
+          data.cells[i].tx = pos.positions[i][0];
+          data.cells[i].ty = pos.positions[i][1];
+          data.cells[i].tz = pos.positions[i][2] || data.cells[i].getZ(pos.positions[i][0], pos.positions[i][1]);
+          data.cells[i].setBuffer('targetTranslation');
+        }
+      } else {
+        // Standard layout returns [[x,y], [x,y], ...]
+        for (var i=0; i<data.cells.length; i++) {
+          data.cells[i].tx = pos[i][0];
+          data.cells[i].ty = pos[i][1];
+          data.cells[i].tz = pos[i][2] || data.cells[i].getZ(pos[i][0], pos[i][1]);
+          data.cells[i].setBuffer('targetTranslation');
+        }
       }
       // update the transition uniforms and targetPosition buffers on each mesh
       var animatable = [];
@@ -746,12 +786,48 @@ Layout.prototype.set = function(layout, enableDelay) {
 
 Layout.prototype.getLayoutPath = function() {
   var layoutType = this.getJittered() ? 'jittered' : 'layout';
-  if (this.selected !== 'umap') return data.layouts[this.selected][layoutType];
-  var selected = data.layouts[this.selected]['variants'].filter(function(v) {
-    return v.n_neighbors.toString() === this.getSelectedNNeighbors() &&
-           v.min_dist.toString() === this.getSelectedMinDist()
-    }.bind(this))[0];
-  return selected[layoutType];
+  
+  // Special handling for network layout
+  if (this.selected === 'network') {
+    // Make sure layouts and selected layout exist
+    if (!data.layouts || !data.layouts[this.selected]) {
+      console.error('Network layout not found in data.layouts');
+      console.log('Available layouts:', Object.keys(data.layouts || {}));
+      return null;
+    }
+    
+    // Make sure layout path exists
+    if (!data.layouts[this.selected]['layout']) {
+      console.error('Network layout path is missing');
+      console.log('Network layout data:', data.layouts[this.selected]);
+      return null;
+    }
+    
+    // Return the network layout path
+    return data.layouts[this.selected]['layout'];
+  }
+  
+  // Standard handling for other layouts
+  if (this.selected !== 'umap') {
+    // Make sure the layout exists
+    if (!data.layouts[this.selected] || !data.layouts[this.selected][layoutType]) {
+      console.error('Layout ' + this.selected + ' is missing ' + layoutType);
+      return null;
+    }
+    return data.layouts[this.selected][layoutType];
+  }
+  
+  // Special handling for UMAP
+  try {
+    var selected = data.layouts[this.selected]['variants'].filter(function(v) {
+      return v.n_neighbors.toString() === this.getSelectedNNeighbors() &&
+             v.min_dist.toString() === this.getSelectedMinDist()
+      }.bind(this))[0];
+    return selected[layoutType];
+  } catch (e) {
+    console.error('Error getting UMAP layout:', e);
+    return null;
+  }
 }
 
 // set the point size as a function of the current layout
@@ -763,11 +839,14 @@ Layout.prototype.setPointScalar = function() {
   if (l == 'categorical') size = config.size.points.categorical;
   if (l == 'geographic') size = config.size.points.geographic;
   if (l == 'date') size = config.size.points.date;
-  if (size) {
-    world.elems.pointSize.value = size / window.devicePixelRatio;
-    var scale = world.getPointScale();
-    world.setUniform('targetScale', scale);
-  }
+  if (l == 'network') size = config.size.points.scatter; // Use scatter point size for network
+  
+  // If no specific size was set, default to scatter for safety
+  if (!size) size = config.size.points.scatter;
+  
+  world.elems.pointSize.value = size / window.devicePixelRatio;
+  var scale = world.getPointScale();
+  world.setUniform('targetScale', scale);
 }
 
 // show/hide the jitter and return a bool whether to jitter the new layout
@@ -784,11 +863,152 @@ Layout.prototype.getJittered = function() {
   return this.getJitterable() && this.elems.input.checked;
 }
 
+// Create network edge visualization 
+Layout.prototype.createNetworkEdges = function() {
+  // If edges already exist, remove them
+  this.removeNetworkEdges();
+  
+  console.log('Creating network edges');
+  
+  // First, load the network layout data to get the edges
+  var self = this;
+  var layoutPath = this.getLayoutPath();
+  
+  // Check if layout path is valid
+  if (!layoutPath) {
+    console.error('Cannot create network edges: layout path is null');
+    return;
+  }
+  
+  // Fetch the network layout data which includes edges
+  get(getPath(layoutPath), function(layoutData) {
+    console.log('Loaded network layout data', layoutData);
+    
+    // Check if layout data contains edges
+    if (!layoutData) {
+      console.warn('Network layout data is empty or invalid');
+      return;
+    }
+    
+    if (!layoutData.edges && !layoutData.positions) {
+      console.warn('Network layout data missing edges or positions');
+      return;
+    }
+    
+    // Get edges from the layout data
+    var edges = layoutData.edges || [];
+    if (edges.length === 0) {
+      console.warn('No edges found in network layout');
+      return;
+    }
+    
+    var edgeGeometry = new THREE.BufferGeometry();
+    var positions = [];
+    
+    // Prepare arrays for vertices and colors
+    var positions = [];
+    var colors = [];
+    var weights = [];
+    
+    // Find the max weight for normalization
+    var maxWeight = 0;
+    for (var i = 0; i < edges.length; i++) {
+      var weight = edges[i].weight || 1.0;
+      maxWeight = Math.max(maxWeight, weight);
+    }
+    
+    // Process each edge
+    for (var i = 0; i < edges.length; i++) {
+      var edge = edges[i];
+      var sourceIdx = edge.source;
+      var targetIdx = edge.target;
+      
+      // Convert file names to indexes if needed
+      if (typeof sourceIdx === 'string') {
+        sourceIdx = data.json.images.indexOf(sourceIdx);
+      }
+      if (typeof targetIdx === 'string') {
+        targetIdx = data.json.images.indexOf(targetIdx);
+      }
+      
+      if (sourceIdx >= 0 && sourceIdx < data.cells.length && 
+          targetIdx >= 0 && targetIdx < data.cells.length) {
+        var source = data.cells[sourceIdx];
+        var target = data.cells[targetIdx];
+        
+        // Use edge weight to determine opacity and color
+        var weight = edge.weight || 1.0;
+        var normalizedWeight = weight / maxWeight;
+        
+        // Store weight for line width
+        weights.push(normalizedWeight);
+        
+        // Add vertex positions
+        positions.push(source.x, source.y, source.z || 0);
+        positions.push(target.x, target.y, target.z || 0);
+        
+        // Add colors - gradient from light blue to white based on weight
+        var r = 0.5 + (normalizedWeight * 0.5); // 0.5-1.0
+        var g = 0.7 + (normalizedWeight * 0.3); // 0.7-1.0
+        var b = 1.0;                           // always 1.0
+        
+        // Add the color twice (once for each vertex of the line)
+        colors.push(r, g, b);
+        colors.push(r, g, b);
+      }
+    }
+    
+    // Only create edges if we have positions
+    if (positions.length > 0) {
+      // Create the buffer geometry
+      edgeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      edgeGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      
+      // Create material with transparency and vertex colors
+      var edgeMaterial = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.7,
+        linewidth: 2  // Note: linewidth > 1 might not work on all platforms due to WebGL limitations
+      });
+      
+      // Create the line segments
+      self.networkEdges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+      
+      // Set renderOrder to make sure edges render behind points
+      self.networkEdges.renderOrder = -1;
+      
+      // Add to scene
+      world.scene.add(self.networkEdges);
+      
+      console.log('Added network edges to scene');
+    } else {
+      console.warn('No valid edges to render');
+    }
+  });
+}
+
+// Remove network edge visualization
+Layout.prototype.removeNetworkEdges = function() {
+  if (this.networkEdges) {
+    world.scene.remove(this.networkEdges);
+    if (this.networkEdges.geometry) {
+      this.networkEdges.geometry.dispose();
+    }
+    if (this.networkEdges.material) {
+      this.networkEdges.material.dispose();
+    }
+    this.networkEdges = null;
+    console.log('Removed network edges from scene');
+  }
+}
+
 // return a bool indicating if the selected layout is jitterable
 Layout.prototype.getJitterable = function() {
-  return this.selected === 'umap'
-    ? true
-    : 'jittered' in data.layouts[this.selected];
+  if (this.selected === 'umap' || this.selected === 'network') {
+    return true;
+  }
+  return 'jittered' in data.layouts[this.selected];
 }
 
 // show/hide any contextual elements given the new layout
@@ -827,6 +1047,13 @@ Layout.prototype.onTransitionComplete = function() {
     world.group.children[i].material.uniforms.transitionPercent = {type: 'f', value: 0};
   }
   // indicate the world is no longer transitioning
+  
+  // Handle network layout visualization
+  if (this.selected === 'network') {
+    this.createNetworkEdges();
+  } else {
+    this.removeNetworkEdges();
+  }
   world.state.transitioning = false;
   // set the current point scale value
   world.setScaleUniforms();
@@ -3555,6 +3782,10 @@ function Tooltip() {
     {
       elem: document.querySelector('#layout-grid'),
       text: 'Represent UMAP clusters on a grid',
+    },
+    {
+      elem: document.querySelector('#layout-network'),
+      text: 'Visualize image connections in a network layout',
     },
     {
       elem: document.querySelector('#layout-date'),

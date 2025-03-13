@@ -100,11 +100,28 @@ You can now use PixPlot with Python 3.10. Basic usage:
 
 ```bash
 # Process a folder of images
-pixplot --images path/to/images
+pixplot --images "path/to/images/*.jpg"
+
+# With network visualization:
+pixplot --images "path/to/images/*.jpg" --network_n_neighbors 5 --network_edge_threshold 0.7 --network_layout_iterations 100
 
 # Run a local web server to view the visualization
 pixplot --serve
 ```
+
+### A note on the network things
+You can use the stand-alone script to create network files for your own analysis and visualization. 
+
+The 'baked-in' visualization of network neighbours uses these conventions:
+
+1. Weight-Based Coloring: Added color gradients based on edge weights:
+    - Stronger connections (higher weights) appear more white/bright
+    - Weaker connections appear more blue
+    - This creates a visual hierarchy where stronger connections stand out
+2. Thicker Lines: Increased the linewidth from 1 to 2 to make edges more visible. Note that in WebGL, linewidth values greater than 1 are not supported on all platforms, but we've set it anyway for platforms that do support it.
+3. Vertex Colors: Implemented vertex coloring to allow gradient effects along edges.
+4. Weight Normalization: Added code to find the maximum weight and normalize all
+  weights, ensuring consistent visual scaling regardless of the actual weight range.
 
 ## Troubleshooting
 

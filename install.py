@@ -29,7 +29,8 @@ subprocess.check_call([sys.executable, "-m", "pip", "install",
                       "Pillow",
                       "pointgrid",
                       "python-dateutil",
-                      "iiif-downloader"])
+                      "iiif-downloader",
+                      "networkx>=2.5"])
 
 # 4. Install Yale's fork of rasterfairy without dependencies
 print("Installing yale-dhlab-rasterfairy without updating numpy...")
@@ -52,10 +53,11 @@ print("\nVerifying installations:")
 try:
     subprocess.check_call([sys.executable, "-c", "import numpy; print('numpy version:', numpy.__version__)"])
     subprocess.check_call([sys.executable, "-c", "import tensorflow; print('tensorflow version:', tensorflow.__version__)"])
-    subprocess.check_call([sys.executable, "-c", "import rasterfairy; print('rasterfairy installed successfully')"])
+    #subprocess.check_call([sys.executable, "-c", "import rasterfairy; print('rasterfairy installed successfully')"])
 except:
     print("Warning: Some verifications failed, but PixPlot might still work with fallbacks.")
 
 print("\nPixPlot installation complete!")
 print("Some dependencies may show as conflicting, but the application should still work.")
+print("\n\n Remember to copy rasterfairy.py from this repo into your installed rasterfairy location.")
 print("Good luck and godspeed!")

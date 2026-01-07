@@ -57,7 +57,7 @@ try:
 
     if rasterfairy_path:
         target_file = os.path.join(rasterfairy_path, "rasterfairy.py")
-        source_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rasterfairy.py")
+        source_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rasterfairy_fix.py")
 
         if os.path.exists(source_file) and os.path.exists(target_file):
             shutil.copy2(source_file, target_file)

@@ -54,7 +54,7 @@ This script will:
 
 ### 4. Verify the Installation (Automatic Rasterfairy Fix)
 
-The installation script automatically applies the Python 3.8+ compatibility fix to rasterfairy. If for some reason the automatic fix fails, you can manually copy the rasterfairy.py file:
+The installation script automatically applies the Python 3.8+ compatibility fix to rasterfairy. If for some reason the automatic fix fails, you can manually copy the rasterfairy_fix.py file:
 
 **Manual fix (if needed):**
 ```bash
@@ -62,7 +62,7 @@ The installation script automatically applies the Python 3.8+ compatibility fix 
 python -c "import site; print(site.getsitepackages())"
 
 # Copy the fixed version (adjust the path based on your environment)
-cp rasterfairy.py /path/to/site-packages/rasterfairy/rasterfairy.py
+cp rasterfairy_fix.py /path/to/site-packages/rasterfairy/rasterfairy.py
 ```
 
 ### 5. Verify Installation Success
@@ -111,9 +111,11 @@ If you encounter errors after following these steps, verify that:
 1. The installation script successfully applied the rasterfairy.py fix (check the installation output)
 2. Your Python environment is 3.8 or later (3.12+ recommended)
 3. You have a compatible numpy version (1.24.0+, will auto-install the best version for your environment)
-4. If automatic rasterfairy fix failed, manually copy rasterfairy.py as shown in step 4
+4. If automatic rasterfairy fix failed, manually copy rasterfairy_fix.py as shown in step 4
 
-**Note for Google Colab users:** The installation is fully compatible with Colab's pre-installed packages including numpy 2.x
+**Note for Google Colab users:**
+- The installation is fully compatible with Colab's pre-installed packages including numpy 2.x
+- If you get a circular import error with rasterfairy, change to a different directory before importing: `%cd /content` then retry the import
 
 ---
 

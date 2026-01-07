@@ -45,10 +45,10 @@ python install.py
 ```
 
 This script will:
-- Install numpy 1.26.4
-- Install TensorFlow 2.15.0+
+- Install numpy (1.24.0+, compatible with both older and newer Python environments)
+- Install TensorFlow 2.16.0+ (supports numpy 2.x for environments like Google Colab)
 - Install critical dependencies (scipy, matplotlib, scikit-learn, umap-learn, etc.)
-- Install the Yale fork of rasterfairy with Python 3.8+ compatibility fix
+- Install the Yale fork of rasterfairy with automatic Python 3.8+ compatibility fix
 - Install MulticoreTSNE (if conda is available)
 - Install PixPlot itself
 
@@ -106,12 +106,14 @@ The 'baked-in' visualization of network neighbours uses these conventions:
 
 ## Troubleshooting
 
-If you encounter errors related to rasterfairy after following these steps, verify that:
+If you encounter errors after following these steps, verify that:
 
 1. The installation script successfully applied the rasterfairy.py fix (check the installation output)
 2. Your Python environment is 3.8 or later (3.12+ recommended)
-3. You have compatible numpy version (1.26.4 recommended for Python 3.12+)
-4. If automatic fix failed, manually copy rasterfairy.py as shown in step 4
+3. You have a compatible numpy version (1.24.0+, will auto-install the best version for your environment)
+4. If automatic rasterfairy fix failed, manually copy rasterfairy.py as shown in step 4
+
+**Note for Google Colab users:** The installation is fully compatible with Colab's pre-installed packages including numpy 2.x
 
 ---
 

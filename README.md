@@ -1,28 +1,28 @@
-# PixPlot for Python 3.10
+# PixPlot for Python 3.8+
 # PixPlot Installation Guide
 
-This guide will help you install PixPlot for Python 3.10 environments. PixPlot is a tool for visualizing large image collections using WebGL, machine learning, and dimensionality reduction techniques.
+This guide will help you install PixPlot for Python 3.8+ environments (including Python 3.12 and 3.13). PixPlot is a tool for visualizing large image collections using WebGL, machine learning, and dimensionality reduction techniques.
 
 ## Prerequisites
 
-- Python 3.10 (required)
+- Python 3.8 or later (Python 3.12+ recommended)
 - Conda or Miniconda (recommended for environment management)
 
 ## Installation Steps
 
-### 1. Create a Python 3.10 Environment
+### 1. Create a Python Environment
 
-First, create a dedicated Python 3.10 environment:
+First, create a dedicated Python environment (Python 3.12+ recommended):
 
 **Using Conda:**
 ```bash
-conda create -n pixplot python=3.10
+conda create -n pixplot python=3.12
 conda activate pixplot
 ```
 
 **Using venv (if not using Conda):**
 ```bash
-python -m venv pixplot-env
+python3.12 -m venv pixplot-env
 # On Windows
 pixplot-env\Scripts\activate
 # On macOS/Linux
@@ -45,46 +45,27 @@ python install.py
 ```
 
 This script will:
-- Install numpy 1.22.4
-- Install TensorFlow 2.13.0
+- Install numpy (1.24.0+, compatible with both older and newer Python environments)
+- Install TensorFlow 2.16.0+ (supports numpy 2.x for environments like Google Colab)
 - Install critical dependencies (scipy, matplotlib, scikit-learn, umap-learn, etc.)
-- Install the Yale fork of rasterfairy
+- Install the Yale fork of rasterfairy with automatic Python 3.8+ compatibility fix
 - Install MulticoreTSNE (if conda is available)
 - Install PixPlot itself
 
-### 4. Fix the Rasterfairy Module
+### 4. Verify the Installation (Automatic Rasterfairy Fix)
 
-After installation, you'll need to replace the rasterfairy.py file with the updated version to ensure compatibility with Python 3.10:
+The installation script automatically applies the Python 3.8+ compatibility fix to rasterfairy. If for some reason the automatic fix fails, you can manually copy the rasterfairy_fix.py file:
 
-1. Locate the rasterfairy module in your environment:
+**Manual fix (if needed):**
+```bash
+# Find your Python site-packages directory
+python -c "import site; print(site.getsitepackages())"
 
-   **For Conda environments:**
-   ```bash
-   # Find the path to your environment
-   conda env list
-   
-   # Navigate to the site-packages directory
-   cd /path/to/your/conda/envs/pixplot/lib/python3.10/site-packages/rasterfairy
-   ```
+# Copy the fixed version (adjust the path based on your environment)
+cp rasterfairy_fix.py /path/to/site-packages/rasterfairy/rasterfairy.py
+```
 
-   **For venv environments:**
-   ```bash
-   # Navigate to the site-packages directory
-   cd pixplot-env/lib/python3.10/site-packages/rasterfairy
-   ```
-
-2. Replace the content of the rasterfairy.py file with the provided fix:
-   - Copy the entire content from `rasterfairy.py` in this repository
-   - Paste it into the `rasterfairy.py` file, replacing all existing content
-
-   You can do this with a text editor or use these commands:
-   ```bash
-   # Copy the fixed version over the original
-   # Assuming you're in this repository folder
-   cp rasterfairy.py /path/to/site-packages/rasterfairy/rasterfairy.py
-   ```
-
-### 5. Verify the Installation
+### 5. Verify Installation Success
 
 To verify the installation was successful:
 
@@ -96,7 +77,7 @@ If no errors appear and you see the success message, the installation is complet
 
 ## Usage
 
-You can now use PixPlot with Python 3.10. Basic usage:
+You can now use PixPlot with Python 3.8+ (including Python 3.12 and 3.13). Basic usage:
 
 ```bash
 # Process a folder of images
@@ -125,11 +106,16 @@ The 'baked-in' visualization of network neighbours uses these conventions:
 
 ## Troubleshooting
 
-If you encounter errors related to rasterfairy after following these steps, verify that:
+If you encounter errors after following these steps, verify that:
 
-1. You've properly replaced the rasterfairy.py file with the provided fix
-2. Your Python environment is exactly 3.10.x
-3. You have the correct numpy version (1.22.4)
+1. The installation script successfully applied the rasterfairy.py fix (check the installation output)
+2. Your Python environment is 3.8 or later (3.12+ recommended)
+3. You have a compatible numpy version (1.24.0+, will auto-install the best version for your environment)
+4. If automatic rasterfairy fix failed, manually copy rasterfairy_fix.py as shown in step 4
+
+**Note for Google Colab users:**
+- The installation is fully compatible with Colab's pre-installed packages including numpy 2.x
+- If you get a circular import error with rasterfairy, change to a different directory before importing: `%cd /content` then retry the import
 
 ---
 
@@ -147,11 +133,11 @@ See the [change log](https://github.com/YaleDHLab/pix-plot/wiki/Change-Log) for 
 
 We maintain several platform-specific [installation cookbooks](https://github.com/YaleDHLab/pix-plot/wiki) online.
 
-Broadly speaking, to install the Python dependencies, we recommend you [install Anaconda](https://www.anaconda.com/products/individual#Downloads) and then create a conda environment with a Python 3.7 runtime:
+Broadly speaking, to install the Python dependencies, we recommend you [install Anaconda](https://www.anaconda.com/products/individual#Downloads) and then create a conda environment with Python 3.8 or later:
 
 ```bash
-conda create --name=3.7 python=3.7
-source activate 3.7
+conda create --name=pixplot python=3.12
+conda activate pixplot
 ```
 
 Then you can install the dependencies by running:

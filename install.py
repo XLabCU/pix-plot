@@ -8,41 +8,79 @@ print("Creating a custom environment for PixPlot...")
 # Check if we're on a Mac with ARM architecture
 is_mac_arm = platform.system() == "Darwin" and platform.machine().startswith(("arm", "aarch"))
 
-# 1. Install numpy first to ensure the correct version
-print("Installing numpy 1.22.4...")
-subprocess.check_call([sys.executable, "-m", "pip", "install", "numpy==1.22.4", "--only-binary=:all:"])
+# 1. Install numpy first to ensure a compatible version
+print("Installing numpy...")
+subprocess.check_call([sys.executable, "-m", "pip", "install", "numpy>=1.24.0", "--only-binary=:all:"])
 
 # 2. Install TensorFlow via pip
 print("Installing TensorFlow...")
-subprocess.check_call([sys.executable, "-m", "pip", "install", "tensorflow==2.13.0"])
+subprocess.check_call([sys.executable, "-m", "pip", "install", "tensorflow>=2.16.0"])
 
 
 # 3. Install other critical dependencies
 print("Installing other critical dependencies...")
-subprocess.check_call([sys.executable, "-m", "pip", "install", 
-                      "scipy==1.8.1", 
-                      "matplotlib==3.5.3",
-                      "scikit-learn==1.0.2",
-                      "umap-learn==0.5.3",
+subprocess.check_call([sys.executable, "-m", "pip", "install",
+                      "scipy>=1.11.0",
+                      "matplotlib>=3.8.0",
+                      "scikit-learn>=1.3.0",
+                      "umap-learn>=0.5.5",
                       "glob2",
                       "tqdm",
-                      "Pillow",
+                      "Pillow>=10.0.0",
                       "pointgrid",
                       "python-dateutil",
                       "iiif-downloader",
-                      "networkx>=2.5"])
+                      "h5py>=3.10.0",
+                      "networkx>=3.0"])
 
-# 4. Install Yale's fork of rasterfairy without dependencies
+# 4. Install Yale's fork of rasterfairy and apply compatibility fix
 print("Installing yale-dhlab-rasterfairy without updating numpy...")
 subprocess.check_call([sys.executable, "-m", "pip", "install", "yale-dhlab-rasterfairy"])
+
+# Apply the Python 3.8+ compatibility fix
+print("Applying Python 3.8+ compatibility fix to rasterfairy...")
+import os
+import shutil
+import site
+try:
+    # Find the installed rasterfairy package location by checking site-packages
+    site_packages = site.getsitepackages()
+    if hasattr(site, 'getusersitepackages'):
+        site_packages.append(site.getusersitepackages())
+
+    rasterfairy_path = None
+    for sp in site_packages:
+        candidate = os.path.join(sp, "rasterfairy")
+        if os.path.isdir(candidate):
+            rasterfairy_path = candidate
+            break
+
+    if rasterfairy_path:
+        target_file = os.path.join(rasterfairy_path, "rasterfairy.py")
+        source_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rasterfairy_fix.py")
+
+        if os.path.exists(source_file) and os.path.exists(target_file):
+            shutil.copy2(source_file, target_file)
+            print(f"Successfully applied fix to {target_file}")
+        else:
+            print(f"Warning: Could not find source or target file.")
+            print(f"Source: {source_file} (exists: {os.path.exists(source_file)})")
+            print(f"Target: {target_file} (exists: {os.path.exists(target_file)})")
+    else:
+        print("Warning: Could not locate rasterfairy installation directory")
+        print("Please manually copy rasterfairy.py to your installed rasterfairy location.")
+except Exception as e:
+    print(f"Warning: Could not automatically apply rasterfairy fix: {e}")
+    print("Please manually copy rasterfairy.py to your installed rasterfairy location.")
 
 # 5. Install MulticoreTSNE using conda
 print("Installing MulticoreTSNE from conda-forge...")
 try:
     subprocess.check_call(["conda", "install", "-y", "conda-forge::multicore-tsne"])
     print("Successfully installed MulticoreTSNE from conda-forge")
-except subprocess.CalledProcessError:
-    print("Could not install MulticoreTSNE from conda. The code will use sklearn's TSNE implementation as a fallback.")
+except (subprocess.CalledProcessError, FileNotFoundError):
+    print("Could not install MulticoreTSNE from conda (conda not available or installation failed).")
+    print("The code will use sklearn's TSNE implementation as a fallback.")
 
 # 6. Install pixplot without dependencies
 print("Installing PixPlot...")
@@ -58,6 +96,6 @@ except:
     print("Warning: Some verifications failed, but PixPlot might still work with fallbacks.")
 
 print("\nPixPlot installation complete!")
+print("Compatible with Python 3.8+")
 print("Some dependencies may show as conflicting, but the application should still work.")
-print("\n\n Remember to copy rasterfairy.py from this repo into your installed rasterfairy location.")
 print("Good luck and godspeed!")
